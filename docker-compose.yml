@@ -1,0 +1,57 @@
+# Запуск: docker compose up -d --build
+# Сайт будет на http://localhost:3000 (за Caddy — на вашем домене с HTTPS, см. README)
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - pdfhub-data:/app/data
+    environment:
+      NODE_ENV: production
+      LIBRETRANSLATE_URL: http://libretranslate:5000
+    depends_on:
+      - libretranslate
+    ports:
+      - "3000:3000"
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+
+  # Свой сервис перевода (бесплатный, без ключей). Первый запуск скачивает языковые модели — это занимает несколько минут.
+  libretranslate:
+    image: libretranslate/libretranslate:latest
+    restart: unless-stopped
+    environment:
+      LT_LOAD_ONLY: ru,en,de,fr,es,it,pt,uk,pl,tr
+      LT_UPDATE_MODELS: "true"
+    volumes:
+      - lt-models:/home/libretranslate/.local
+    healthcheck:
+      test: ["CMD-SHELL", "./venv/bin/python scripts/healthcheck.py"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 300s
+
+  # Необязательно: HTTPS с автоматическим сертификатом. Запуск: docker compose --profile https up -d
+  caddy:
+    image: caddy:2
+    profiles: ["https"]
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+    depends_on:
+      - app
+
+volumes:
+  pdfhub-data:
+  caddy-data:
+  lt-models:

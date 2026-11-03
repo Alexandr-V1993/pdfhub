@@ -1,0 +1,7 @@
+{$DOMAIN:localhost} {
+	encode gzip zstd
+	request_body {
+		max_size 320MB
+	}
+	reverse_proxy app:3000
+}
